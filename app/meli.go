@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"math"
 	"net/http"
 	"os"
 	"strconv"
@@ -34,6 +33,7 @@ var (
 		"body.seller_address.country.id",
 		"body.catalog_product_id",
 		"body.domain_id",
+		"search_query",
 	}
 	headers = []string{
 		"code",
@@ -54,6 +54,7 @@ var (
 		"seller_address_country_id",
 		"catalog_product_id",
 		"domain_id",
+		"search_query",
 	}
 )
 
@@ -61,7 +62,7 @@ func GetSearchedItemList(searchQuery string, records, pageSize int) [][]byte {
 
 	//max limit = 50
 
-	pages := int(math.Ceil(float64(records) / float64(pageSize)))
+	pages := int(float64(records) / float64(pageSize))
 	var outputSlice [][]byte
 	for i := 0; i < pages; i++ {
 		query := fmt.Sprintf("https://api.mercadolibre.com/sites/MLA/search?q=%v&limit=%v&offset=%v#json",
@@ -74,9 +75,15 @@ func GetSearchedItemList(searchQuery string, records, pageSize int) [][]byte {
 }
 
 func GetItemIDs(input [][]byte) (out []string) {
-	for _, d := range input {
+	for cd, d := range input {
+		log.Printf("BATCH %v ==============", cd)
 		v := gjson.GetBytes(d, "results.#.id")
-		for _, item := range v.Array() {
+		log.Printf("v.Array() %v", len(v.Array()))
+		for ci, item := range v.Array() {
+			log.Printf("%v", item.String())
+			if ci%10 == 0 && ci > 0 {
+				log.Println("")
+			}
 			out = append(out, item.String())
 		}
 	}
@@ -94,7 +101,6 @@ func GetItemData(IDSlice []string) []byte {
 	}
 	query := fmt.Sprintf("https://api.mercadolibre.com/items?ids=%v",
 		strBuild.String())
-	// log.Printf("%v", query)
 	strBuild.Reset()
 	return doQueryReturnData(query)
 }
@@ -103,14 +109,17 @@ func ParseItemData(input []byte) string {
 	return gjson.GetBytes(input, "").String()
 }
 
-func WriteCSV(fileName string, input gjson.Result) {
-	csvFile, err := os.Create(fileName)
+func WriteCSV(fileName string, input gjson.Result, search_query string, header bool) {
+	csvFile, err := os.OpenFile(fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+
 	if err != nil {
 		fmt.Println(err)
 	}
 	defer csvFile.Close()
 	writer := csv.NewWriter(csvFile)
-	err = writer.Write(headers)
+	if header {
+		err = writer.Write(headers)
+	}
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -119,9 +128,14 @@ func WriteCSV(fileName string, input gjson.Result) {
 		for i, field := range fields {
 			s := record.Get(field).String()
 			if i == 0 && s != "200" { // to filter out invalid records
+				log.Println("No OK!")
 				continue
 			}
-			row = append(row, s)
+			if field == "search_query" {
+				row = append(row, search_query)
+			} else {
+				row = append(row, s)
+			}
 		}
 		err = writer.Write(row)
 		if err != nil {

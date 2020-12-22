@@ -3,14 +3,25 @@ package main
 import (
 	"log"
 
-	meli "github.com/gaz082/meli/app"
+	meli "github.com/gaz082/desafio_meli/app"
+	"github.com/tidwall/gjson"
 )
 
 func main() {
-	queryData := meli.GetSearchedItemList("samsung", 20, 10)
+	queryData := meli.GetSearchedItemList("samsung", 2, 1)
+	itemsData := meli.GetItemData(meli.GetItemIDs(queryData))
 
-	itemsID := meli.GetItemIDs(queryData)
+	q := gjson.ParseBytes(itemsData)
 
-	log.Printf("%v", itemsID)
+	for _, v := range q.Array() {
+		log.Printf("%v", v.Get("code").String())
+
+	}
+
+	// gjson.ForEachLine(gjson.ParseBytes(itemsData).String(),
+	// 	func(line gjson.Result) bool {
+	// 		println(line.Get("#id").String())
+	// 		return true
+	// 	})
 
 }

@@ -8,7 +8,7 @@ https://api.mercadolibre.com/sites/MLA/search?q=chromecast&limit=50#json
 https://api.mercadolibre.com/items/{Item_Id}
 */
 
-package meli
+package desafio_meli
 
 import (
 	"encoding/csv"
@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/tidwall/gjson"
 )
@@ -49,6 +50,7 @@ func GetSearchedItemList(searchQuery string, records, pageSize int) [][]byte {
 }
 
 func GetItemIDs(input [][]byte) (out []string) {
+
 	for _, d := range input {
 		v := gjson.GetBytes(d, "results.#.id")
 		for _, item := range v.Array() {
@@ -59,9 +61,25 @@ func GetItemIDs(input [][]byte) (out []string) {
 	return
 }
 
-func GetItemData(IDSlice string) []byte {
-	query := fmt.Sprintf("https://api.mercadolibre.com/items?ids=%v", IDSlice)
+func GetItemData(IDSlice []string) []byte {
+	strBuild := strings.Builder{}
+	for i, s := range IDSlice {
+		strBuild.WriteString(s)
+		if i < len(IDSlice)-1 {
+			strBuild.WriteString(",")
+		}
+	}
+	// query := fmt.Sprintf("https://api.mercadolibre.com/items/%v",
+
+	query := fmt.Sprintf("https://api.mercadolibre.com/items?ids=%v",
+		strBuild.String())
+	log.Printf("%v", query)
+	strBuild.Reset()
 	return doQueryReturnData(query)
+}
+
+func ParseItemData(input []byte) string {
+	return gjson.GetBytes(input, "").String()
 }
 
 func WriteCSV(fileName string, input *[]meliOutput) {
@@ -84,7 +102,6 @@ func WriteCSV(fileName string, input *[]meliOutput) {
 }
 
 func doQueryReturnData(query string) []byte {
-	log.Printf("Query: %v", query)
 	resp, err := http.Get(query)
 	if err != nil {
 		log.Println(err.Error())
@@ -93,5 +110,6 @@ func doQueryReturnData(query string) []byte {
 	if err != nil {
 		log.Println(err.Error())
 	}
+	log.Printf("Query: %v - %v bytes", query, len(body))
 	return body
 }

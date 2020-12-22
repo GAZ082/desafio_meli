@@ -8,4 +8,4 @@ https://api.mercadolibre.com/sites/MLA/search?q=chromecast&limit=50#json
 https://api.mercadolibre.com/items/{Item_Id}
 */
 
-package meli
+package desafio_meli

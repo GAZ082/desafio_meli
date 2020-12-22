@@ -30,12 +30,16 @@ var (
 		"body.pictures.#(url).secure_url",
 		"body.seller_address.city.name",
 		"body.seller_address.state.id",
+		"body.seller_address.state.name",
 		"body.seller_address.country.id",
 		"body.catalog_product_id",
+		"body.health",
+		"body.permalink",
+		"body.inventory_id",
 		"body.domain_id",
 		"search_query",
 	}
-	headers = []string{
+	Headers = []string{
 		"code",
 		"id",
 		"title",
@@ -51,8 +55,12 @@ var (
 		"picture_url",
 		"seller_address_city_name",
 		"seller_address_state_id",
+		"seller_address_state_name",
 		"seller_address_country_id",
 		"catalog_product_id",
+		"health",
+		"permalink",
+		"inventory_id",
 		"domain_id",
 		"search_query",
 	}
@@ -109,7 +117,7 @@ func ParseItemData(input []byte) string {
 	return gjson.GetBytes(input, "").String()
 }
 
-func WriteCSV(fileName string, input gjson.Result, search_query string, header bool) {
+func WriteCSV(fileName string, input gjson.Result, search_query string) {
 	csvFile, err := os.OpenFile(fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 
 	if err != nil {
@@ -117,9 +125,6 @@ func WriteCSV(fileName string, input gjson.Result, search_query string, header b
 	}
 	defer csvFile.Close()
 	writer := csv.NewWriter(csvFile)
-	if header {
-		err = writer.Write(headers)
-	}
 	if err != nil {
 		fmt.Println(err)
 	}

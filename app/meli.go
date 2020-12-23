@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -27,16 +28,13 @@ var (
 		"body.initial_quantity",
 		"body.available_quantity",
 		"body.sold_quantity",
-		"body.pictures.#(url).secure_url",
 		"body.seller_address.city.name",
 		"body.seller_address.state.id",
 		"body.seller_address.state.name",
 		"body.seller_address.country.id",
 		"body.catalog_product_id",
-		"body.health",
-		"body.permalink",
 		"body.inventory_id",
-		"body.domain_id",
+		"category_name",
 		"search_query",
 	}
 	Headers = []string{
@@ -52,16 +50,13 @@ var (
 		"initial_quantity",
 		"available_quantity",
 		"sold_quantity",
-		"picture_url",
 		"seller_address_city_name",
 		"seller_address_state_id",
 		"seller_address_state_name",
 		"seller_address_country_id",
 		"catalog_product_id",
-		"health",
-		"permalink",
 		"inventory_id",
-		"domain_id",
+		"category_name",
 		"search_query",
 	}
 )
@@ -83,15 +78,9 @@ func GetSearchedItemList(searchQuery string, records, pageSize int) [][]byte {
 }
 
 func GetItemIDs(input [][]byte) (out []string) {
-	for cd, d := range input {
-		log.Printf("BATCH %v ==============", cd)
+	for _, d := range input {
 		v := gjson.GetBytes(d, "results.#.id")
-		log.Printf("v.Array() %v", len(v.Array()))
-		for ci, item := range v.Array() {
-			log.Printf("%v", item.String())
-			if ci%10 == 0 && ci > 0 {
-				log.Println("")
-			}
+		for _, item := range v.Array() {
 			out = append(out, item.String())
 		}
 	}
@@ -117,7 +106,7 @@ func ParseItemData(input []byte) string {
 	return gjson.GetBytes(input, "").String()
 }
 
-func WriteCSV(fileName string, input gjson.Result, search_query string) {
+func WriteCSV(fileName string, input gjson.Result, search_query string, categories map[string]string) {
 	csvFile, err := os.OpenFile(fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 
 	if err != nil {
@@ -138,9 +127,15 @@ func WriteCSV(fileName string, input gjson.Result, search_query string) {
 			}
 			if field == "search_query" {
 				row = append(row, search_query)
-			} else {
-				row = append(row, s)
+				continue
 			}
+			if field == "category_name" {
+				cat := record.Get("body.category_id").String()
+				row = append(row, categories[cat])
+				continue
+			}
+			row = append(row, s)
+
 		}
 		err = writer.Write(row)
 		if err != nil {
@@ -161,4 +156,72 @@ func doQueryReturnData(query string) []byte {
 	}
 	log.Printf("Query: %v - %v bytes", query, len(body))
 	return body
+}
+
+type categoryRecord struct {
+	id           string
+	jsonResponse []byte
+}
+
+func GetCategories(categoryID []string) map[string]string {
+	var temp []categoryRecord
+	output := make(map[string]string)
+	for _, v := range categoryID {
+		q := fmt.Sprintf("https://api.mercadolibre.com/categories/%v", v)
+		temp = append(temp, categoryRecord{
+			id:           v,
+			jsonResponse: doQueryReturnData(q),
+		})
+	}
+
+	for _, t := range temp {
+		d := gjson.GetBytes(t.jsonResponse, "path_from_root.#.name")
+		for i, vv := range d.Array() {
+			if i == 1 {
+				output[t.id] = vv.String()
+			}
+
+		}
+	}
+
+	return output
+}
+
+func WriteHeader(fileName string) {
+	csvFile, err := os.Create(fileName)
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer csvFile.Close()
+	writer := csv.NewWriter(csvFile)
+	err = writer.Write(Headers)
+	if err != nil {
+		fmt.Println(err)
+	}
+	writer.Flush()
+}
+
+func LoadDataToFIle(query []string, fileName string) {
+	cats := GetCategories([]string{"MLA1077", "MLA1087", "MLA1094"})
+	for _, search := range query {
+		queryData := GetSearchedItemList(url.QueryEscape(search), 1000, 50) //1000 50
+		ids := GetItemIDs(queryData)
+		var itemsData [][]byte
+		const itemBatch = 20 //max 20
+		cut := len(ids) / itemBatch
+		var from, to int
+		for i := 0; i <= cut; i++ {
+			from = i * itemBatch
+			if i != cut {
+				to = i*itemBatch + itemBatch
+			} else {
+				to = i*itemBatch + len(ids) - i*itemBatch
+			}
+			itemsData = append(itemsData, GetItemData(ids[from:to]))
+		}
+		for _, v := range itemsData {
+			q := gjson.ParseBytes(v)
+			WriteCSV(fileName, q, search, cats)
+		}
+	}
 }

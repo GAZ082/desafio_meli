@@ -1,11 +1,13 @@
-/*
-1) Barrer una lista de más de 150 ítems ids en el servicio público:
-
-https://api.mercadolibre.com/sites/MLA/search?q=chromecast&limit=50#json
-
-2) Por cada resultado, realizar el correspondiente GET por Item_Id al recurso público:
-
-https://api.mercadolibre.com/items/{Item_Id}
-*/
-
 package desafio_meli
+
+import (
+	"log"
+	"testing"
+)
+
+func TestGetCategories(t *testing.T) {
+	cats := GetCategories([]string{"MLA1077", "MLA1087", "MLA1094"})
+
+	log.Printf("%v", cats["MLA1077"])
+
+}
